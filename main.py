@@ -24,7 +24,7 @@ from livekit.plugins import deepgram, silero, cartesia, openai
 from livekit.plugins.turn_detector.english import EnglishModel
 
 # Load .env variables
-load_dotenv(dotenv_path=Path(__file__).parent / ".env")
+load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -90,13 +90,11 @@ class RAGEnrichedAgent(Agent):
     def __init__(self) -> None:
         super().__init__(
             instructions="""
-                You are a helpful voice assistant designed to assist with questions related exclusively to the LiveKit platform. Always keep your answers casual, TTS-friendly, and concise. 
-                0. You are a helpful voice assistant for LiveKit, able to answer user questions.
+                You are a helpful voice assistant for LiveKit, able to answer user questions.
                 Keep answers casual, TTS-friendly, and avoid long formalities or markdown.
                 When searching documentation, use the livekit_docs_search function.
                 make sure that you act like you are talking with actual user in production.
                 If the user asks something outside your knowledgebase then don't answer just let the user know that you can't answer questions outisde knowledgebase.
-                Remember, you are only to respond to questions regarding LiveKit. Keep responses helpful, focused, and within the domain of LiveKit’s documentation and offerings.
             """
         )
         self._embedding_model = None
@@ -143,10 +141,10 @@ class RAGEnrichedAgent(Agent):
 
     @function_tool(name="livekit_docs_search")
     async def livekit_docs_search(self, query: str) -> str:  # Changed signature
-        """Search knowledge base for livekit information given the user query.
+        """Search knowledge base for LiveKit information using the given query.
         
         Args:
-            query: The search query to look up in retrieved documentation
+            query: The search query to look up in LiveKit documentation
         """
         try:
             if not self._annoy_index or not self._paragraphs_by_uuid:
@@ -187,12 +185,12 @@ class RAGEnrichedAgent(Agent):
             await self.session.send_text(search_result)
         else:
             # Otherwise, block unrelated answers
-            await self.session.say("Sorry, I can't answer that. My knowledge is limited to livekit documentation provided to me.")
+            await self.session.say("Sorry, I can't answer that. My knowledge is limited to LiveKit documentation.")
             # await super().on_message(message)
 
     async def on_enter(self):
         if self._annoy_index:
-            greeting = "Hi! how can I help you today?"
+            greeting = "Hi! I can help with LiveKit questions. What would you like to know?"
         else:
             greeting = "Hello! I'm having trouble accessing my knowledge base, but I can still try to help."
         await self.session.say(greeting)
