@@ -13,7 +13,7 @@ logger = logging.getLogger("build-rag-data")
 
 load_dotenv()
 
-async def main() -> None:
+async def build_rag() -> None:
     raw_data_path = Path(__file__).parent / "data/raw_data.txt"
     if not raw_data_path.exists():
         logger.error(
@@ -38,4 +38,4 @@ async def main() -> None:
     logger.info(f"Data saved to: {output_dir / 'paragraphs.pkl'}")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(build_rag())
