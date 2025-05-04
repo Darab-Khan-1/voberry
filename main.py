@@ -90,12 +90,13 @@ class RAGEnrichedAgent(Agent):
     def __init__(self) -> None:
         super().__init__(
             instructions="""
-                 You are a helpful voice assistant for livekit, able to answer user questions.
+                 You are a helpful voice assistant for given website provided to you, able to answer user questions.
                 Keep answers casual, TTS-friendly, and avoid long formalities or markdown.
-                When searching documentation, use the livekit_docs_search function.
+                When searching documentation, use the given website provided to you docs_search function.
                 make sure that you act like you are talking with actual user in production.
-                If the user asks anythingother than livekit, apologize him and tell them to ask about livekit only.
-                examples: user asks "What is the population of pakistan" you will respond "I can assist you with livekit related queries only. Please avoid asking irrelevant question.
+                If the user asks anythingother than given website provided to you, apologize him and tell them to ask about given website provided to you only.
+                examples: user asks "What is the population of pakistan" you will respond "I can assist you with given website provided to you related queries only. Please avoid asking irrelevant question.
+                If the response generates an eror 404 or any other error, just say that "Cannot answer the question as this is inconsistant with the knowledge base. Don't return the error.
             """
         )
         self._embedding_model = None
@@ -142,10 +143,10 @@ class RAGEnrichedAgent(Agent):
 
     @function_tool(name="livekit_docs_search")
     async def livekit_docs_search(self, query: str) -> str:  # Changed signature
-        """Search knowledge base for LiveKit information using the given query.
+        """Search knowledge base for information regarding the user query using the given query.
         
         Args:
-            query: The search query to look up in LiveKit documentation
+            query: The search query to look up in retrieved documentation
         """
         try:
             if not self._annoy_index or not self._paragraphs_by_uuid:
@@ -186,12 +187,12 @@ class RAGEnrichedAgent(Agent):
             await self.session.send_text(search_result)
         else:
             # Otherwise, block unrelated answers
-            await self.session.say("Sorry, I can't answer that. My knowledge is limited to LiveKit documentation.")
+            await self.session.say("Sorry, I can't answer that. My knowledge is limited to context provided to me via documentation.")
             # await super().on_message(message)
 
     async def on_enter(self):
         if self._annoy_index:
-            greeting = "Hi! I can help with LiveKit questions. What would you like to know?"
+            greeting = "Hi! I can help you today?"
         else:
             greeting = "Hello! I'm having trouble accessing my knowledge base, but I can still try to help."
         await self.session.say(greeting)
