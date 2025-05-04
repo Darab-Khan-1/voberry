@@ -24,7 +24,7 @@ from livekit.plugins import deepgram, silero, cartesia, openai
 from livekit.plugins.turn_detector.english import EnglishModel
 
 # Load .env variables
-load_dotenv(dotenv_path=Path(__file__).parent.parent / ".env")
+load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
