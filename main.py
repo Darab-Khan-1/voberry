@@ -193,6 +193,7 @@ class RAGEnrichedAgent(Agent):
             # await super().on_message(message)
 
     async def on_enter(self):
+        self._seen_results = set()
         if self._annoy_index:
             greeting = "Hi! how can I help you today?"
         else:
