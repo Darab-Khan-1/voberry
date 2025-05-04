@@ -90,12 +90,12 @@ class RAGEnrichedAgent(Agent):
     def __init__(self) -> None:
         super().__init__(
             instructions="""
-                 You are a helpful voice assistant for open weather, able to answer user questions.
+                 You are a helpful voice assistant for livekit, able to answer user questions.
                 Keep answers casual, TTS-friendly, and avoid long formalities or markdown.
-                When searching documentation, use the open weather_docs_search function.
+                When searching documentation, use the livekit_docs_search function.
                 make sure that you act like you are talking with actual user in production.
-                If the user asks anythingother than open weather, apologize him and tell them to ask about open weather only.
-                examples: user asks "What is the population of pakistan" you will respond "I can assist you with open weather related queries only. Please avoid asking irrelevant question.
+                If the user asks anythingother than livekit, apologize him and tell them to ask about livekit only.
+                examples: user asks "What is the population of pakistan" you will respond "I can assist you with livekit related queries only. Please avoid asking irrelevant question.
             """
         )
         self._embedding_model = None
