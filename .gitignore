@@ -1,3 +1,5 @@
 rag-livekit/
 agents-playground/
 .env
+livekit.log
+livekit.yaml
