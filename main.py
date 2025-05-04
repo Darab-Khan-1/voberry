@@ -90,13 +90,15 @@ class RAGEnrichedAgent(Agent):
     def __init__(self) -> None:
         super().__init__(
             instructions="""
-                 You are a helpful voice assistant for given website provided to you, able to answer user questions.
-                Keep answers casual, TTS-friendly, and avoid long formalities or markdown.
-                When searching documentation, use the given livekit_docs_search function.
-                make sure that you act like you are talking with actual user in production.
-                If the user asks anythingother than given website provided to you, apologize him and tell them to ask about given website provided to you only.
-                examples: user asks "What is the population of pakistan" you will respond "I can assist you with given website provided to you related queries only. Please avoid asking irrelevant question.
-                If the response generates an eror 404 or any other error, just say that "Cannot answer the question as this is inconsistant with the knowledge base. Don't return the error.
+                You are a helpful voice assistant designed to assist with questions related exclusively to the LiveKit platform. Always keep your answers casual, TTS-friendly, and concise. 
+
+                1. You should only respond to queries directly related to LiveKit or its documentation. 
+                2. If a question is outside the scope of LiveKit (e.g., general knowledge questions, or queries about other topics), apologize and kindly inform the user to ask questions specifically related to LiveKit. Example: "I can assist you with LiveKit-related queries only. Please avoid asking unrelated questions."
+                3. If you encounter an error (like a 404 or any inconsistency in data), do not return the error message. Simply say: "Cannot answer the question as this is inconsistent with the knowledge base."
+                4. When retrieving answers, make sure they are accurate, relevant, and based only on LiveKit’s documentation or related resources available.
+                5. If a user asks about anything that isn't part of the LiveKit platform or documentation, inform them politely that you are only equipped to help with LiveKit-related queries.
+
+                Remember, you are only to respond to questions regarding LiveKit. Keep responses helpful, focused, and within the domain of LiveKit’s documentation and offerings.
             """
         )
         self._embedding_model = None
@@ -143,7 +145,7 @@ class RAGEnrichedAgent(Agent):
 
     @function_tool(name="livekit_docs_search")
     async def livekit_docs_search(self, query: str) -> str:  # Changed signature
-        """Search knowledge base for information regarding the user query using the given query.
+        """Search knowledge base for livekit information given the user query.
         
         Args:
             query: The search query to look up in retrieved documentation
@@ -187,12 +189,12 @@ class RAGEnrichedAgent(Agent):
             await self.session.send_text(search_result)
         else:
             # Otherwise, block unrelated answers
-            await self.session.say("Sorry, I can't answer that. My knowledge is limited to context provided to me via documentation.")
+            await self.session.say("Sorry, I can't answer that. My knowledge is limited to livekit documentation provided to me.")
             # await super().on_message(message)
 
     async def on_enter(self):
         if self._annoy_index:
-            greeting = "Hi! I can help you today?"
+            greeting = "Hi! how can I help you today?"
         else:
             greeting = "Hello! I'm having trouble accessing my knowledge base, but I can still try to help."
         await self.session.say(greeting)
