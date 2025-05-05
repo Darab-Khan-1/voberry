@@ -3,3 +3,5 @@ agents-playground/
 .env
 livekit.log
 livekit.yaml
+venv
+cvenv

@@ -12,17 +12,18 @@ from dotenv import load_dotenv
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("docs-scraper")
 
 # Load environment variables
 load_dotenv()
 
-BASE_URL = "https://docs.livekit.io"
-SITEMAP_URL = f"{BASE_URL}/sitemap.xml"
+BASE_URL = "https://farmdar.ai/"
 OUTPUT_FILE = Path(__file__).parent / "data/raw_data.txt"
-EXCLUDED_PATHS = ["/reference"]  # Paths to exclude from scraping
+EXCLUDED_PATHS = ["/reference"]
+
 
 class DocsScraper:
     def __init__(self):
@@ -31,98 +32,84 @@ class DocsScraper:
         self.session = None
 
     async def init_session(self):
-        """Initialize the aiohttp session."""
         self.session = aiohttp.ClientSession()
 
     async def close_session(self):
-        """Close the aiohttp session."""
         if self.session:
             await self.session.close()
 
     def should_exclude_url(self, url: str) -> bool:
-        """Check if a URL should be excluded from scraping."""
         parsed = urlparse(url)
         return any(parsed.path.startswith(path) for path in EXCLUDED_PATHS)
 
-    async def fetch_sitemap(self) -> List[str]:
-        """Fetch and parse the sitemap to get all URLs."""
-        async with self.session.get(SITEMAP_URL) as response:
-            if response.status != 200:
-                raise Exception(f"Failed to fetch sitemap: {response.status}")
-            
-            content = await response.text()
-            soup = BeautifulSoup(content, "xml")
-            urls = [loc.text for loc in soup.find_all("loc")]
-            
-            # Filter out excluded URLs and ensure they're from docs.livekit.io
-            return [
-                url for url in urls 
-                if url.startswith(BASE_URL) and not self.should_exclude_url(url)
-            ]
+    async def crawl_links(self, url: str):
+        """Recursively crawl and scrape all internal links starting from the given URL."""
+        if url in self.visited_urls or self.should_exclude_url(url):
+            return
 
-    async def fetch_page(self, url: str) -> str:
-        """Fetch a single page and extract its content."""
+        logger.info(f"Crawling {url}")
+        self.visited_urls.add(url)
+
         try:
             async with self.session.get(url) as response:
-                if response.status != 200:
-                    logger.warning(f"Failed to fetch {url}: {response.status}")
-                    return ""
-                
-                content = await response.text()
-                soup = BeautifulSoup(content, "html.parser")
-                
-                # Extract the main content
-                main_content = soup.find("main")
-                if not main_content:
-                    return ""
-                
-                # Remove unwanted elements
-                for element in main_content.find_all(["nav", "footer", "header", "script", "style"]):
-                    element.decompose()
-                
-                # Clean up the text
-                text = main_content.get_text(separator="\n", strip=True)
-                text = re.sub(r"\n\s*\n", "\n\n", text)  # Remove excessive newlines
-                return text.strip()
-                
+                if response.status != 200 or 'text/html' not in response.headers.get('Content-Type', ''):
+                    logger.warning(f"Skipping non-HTML or failed URL: {url}")
+                    return
+
+                html = await response.text()
+                soup = BeautifulSoup(html, "html.parser")
+
+                # Try to find <main>, fallback to <body>
+                main_content = soup.find("main") or soup.find("body")
+                if main_content:
+                    for tag in main_content.find_all(["script", "style", "footer", "nav", "header"]):
+                        tag.decompose()
+                    text = main_content.get_text(separator="\n", strip=True)
+                    text = re.sub(r"\n\s*\n", "\n\n", text)
+                    if text:
+                        logger.info(
+                            f"Scraped {len(text)} characters from {url}")
+                        self.content.append(
+                            f"Content from {url}:\n\n{text}\n\n")
+                    else:
+                        logger.info(f"No usable text found in {url}")
+                else:
+                    logger.info(f"No <main> or <body> tag found in {url}")
+
+                # Discover more internal links
+                for a_tag in soup.find_all("a", href=True):
+                    href = a_tag["href"]
+                    joined_url = urljoin(BASE_URL, href)
+                    parsed_base = urlparse(BASE_URL)
+                    parsed_href = urlparse(joined_url)
+
+                    # Stay on same domain
+                    if parsed_base.netloc == parsed_href.netloc:
+                        await self.crawl_links(joined_url)
+
         except Exception as e:
-            logger.error(f"Error fetching {url}: {e}")
-            return ""
+            logger.error(f"Failed to crawl {url}: {e}")
 
     async def scrape(self):
-        """Main scraping function."""
         await self.init_session()
         try:
-            # Get all URLs from sitemap
-            urls = await self.fetch_sitemap()
-            logger.info(f"Found {len(urls)} URLs to scrape")
-            
-            # Process each URL
-            for url in urls:
-                if url in self.visited_urls:
-                    continue
-                    
-                self.visited_urls.add(url)
-                logger.info(f"Scraping {url}")
-                
-                content = await self.fetch_page(url)
-                if content:
-                    self.content.append(f"Content from {url}:\n\n{content}\n\n")
-                    
+            logger.info(f"Starting crawl from {BASE_URL}")
+            await self.crawl_links(BASE_URL)
         finally:
             await self.close_session()
 
     def save_content(self):
-        """Save the scraped content to a file."""
-        with open(OUTPUT_FILE, "w") as f:
+        OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
             f.write("\n".join(self.content))
         logger.info(f"Saved content to {OUTPUT_FILE}")
 
+
 async def main():
-    """Main function to run the scraper."""
     scraper = DocsScraper()
     await scraper.scrape()
     scraper.save_content()
 
+
 if __name__ == "__main__":
-    asyncio.run(main()) 
+    asyncio.run(main())

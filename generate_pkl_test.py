@@ -1,60 +1,59 @@
-import pickle
 import uuid
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
-from annoy import AnnoyIndex
+from qdrant_client import QdrantClient
+from qdrant_client.http.models import Distance, VectorParams, PointStruct
 
 # ---- Settings ----
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
-METRIC = "angular"
-NUM_TREES = 10
+COLLECTION_NAME = "livekit_docs"
+RAW_TEXT_FILE = Path("data/raw_data.txt")
 
-VDB_DIR = Path("data")
-VDB_DIR.mkdir(exist_ok=True)
-PARAGRAPHS_FILE = VDB_DIR / "paragraphs.pkl"
-INDEX_FILE = VDB_DIR / "index.annoy"
-METADATA_FILE = VDB_DIR / "metadata.pkl"
+# ---- Load and clean paragraphs ----
+if not RAW_TEXT_FILE.exists():
+    raise FileNotFoundError(f"{RAW_TEXT_FILE} not found.")
 
-# ---- Example paragraphs ----
-raw_paragraphs = [
-    "LiveKit enables real-time video, audio, and data streaming for developers.",
-    "Rooms in LiveKit are virtual spaces where participants can join and communicate.",
-    "Tracks are media sources, such as audio or video, published by participants.",
-    "Simulcast in LiveKit allows streaming at multiple resolutions for better adaptability.",
-    "LiveKit's server SDK provides APIs for managing rooms, participants, and tracks."
-]
+with open(RAW_TEXT_FILE, "r", encoding="utf-8") as f:
+    full_text = f.read()
 
-# ---- Step 1: Embed paragraphs ----
+paragraphs = [p.strip()
+              for p in full_text.split("\n\n") if len(p.strip()) > 50]
+if not paragraphs:
+    raise ValueError("No valid paragraphs found.")
+
+# ---- Load embedding model ----
 model = SentenceTransformer(EMBEDDING_MODEL)
-embeddings = model.encode(raw_paragraphs, convert_to_tensor=False)
 
-# ---- Step 2: Create UUID mapping ----
-uuid_map = {str(uuid.uuid4()): para for para in raw_paragraphs}
+# ---- Encode paragraphs ----
+embeddings = model.encode(paragraphs, convert_to_tensor=False)
 
-# ---- Step 3: Create Annoy index ----
-embedding_dim = len(embeddings[0])  # Use a distinct name to avoid confusion
-index = AnnoyIndex(embedding_dim, metric=METRIC)
-userdata_map = {}
+# ---- Connect to Qdrant (assumes local Qdrant is running) ----
+qdrant = QdrantClient(host="localhost", port=6333)
 
-for i, (uid, embedding) in enumerate(zip(uuid_map.keys(), embeddings)):
-    index.add_item(i, embedding)
-    userdata_map[i] = uid
+# ---- Create/reset collection ----
+qdrant.recreate_collection(
+    collection_name=COLLECTION_NAME,
+    vectors_config=VectorParams(
+        size=len(embeddings[0]),
+        distance=Distance.COSINE
+    )
+)
 
-index.build(NUM_TREES)
-index.save(str(INDEX_FILE))
+# ---- Prepare and upload data ----
+points = []
+for paragraph, vector in zip(paragraphs, embeddings):
+    uid = str(uuid.uuid4())
+    points.append(
+        PointStruct(
+            id=uid,
+            vector=vector,
+            payload={
+                "text": paragraph,
+                "source": "raw_data.txt"  # optional metadata
+            }
+        )
+    )
 
-# ---- Step 4: Save paragraph UUID mapping ----
-with open(PARAGRAPHS_FILE, "wb") as para_file:
-    pickle.dump(uuid_map, para_file)
+qdrant.upsert(collection_name=COLLECTION_NAME, points=points)
 
-# ---- Step 5: Save metadata ----
-metadata = {
-    "f": embedding_dim,
-    "metric": METRIC,
-    "userdata": userdata_map
-}
-
-with open(METADATA_FILE, "wb") as meta_file:
-    pickle.dump(metadata, meta_file)
-
-print("✅ index.annoy, paragraphs.pkl, and metadata.pkl generated in ./data/")
+print(f"✅ Uploaded {len(points)} paragraphs to Qdrant.")
